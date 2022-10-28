@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
 import org.springframework.security.oauth2.client.filter.OAuth2ClientAuthenticationProcessingFilter;
@@ -30,7 +31,7 @@ import static com.example.SpringBootCommunity.domain.enums.SocialType.*;
 @Configuration
 @EnableWebSecurity
 @EnableOAuth2Client
-public class SecurityConfig {
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private OAuth2ClientContext oAuth2ClientContext;
@@ -41,6 +42,9 @@ public class SecurityConfig {
         http
                 .authorizeRequests()
                 .antMatchers("/", "/login/**", "/css/**", "/images/**", "/js/**", "/console/**").permitAll()
+                .antMatchers("/facebook").hasAuthority(FACEBOOK.getRoleType())
+                .antMatchers("/google").hasAuthority(GOOGLE.getRoleType())
+                .antMatchers("/kakao").hasAuthority(KAKAO.getRoleType())
                 .anyRequest().authenticated()
                 .and()
                 .exceptionHandling()
@@ -49,6 +53,7 @@ public class SecurityConfig {
                 .and()
                 .formLogin()
                 .successForwardUrl("/board/list")
+                .failureForwardUrl("/error")
                 .and()
                 .logout()
                 .logoutUrl("/logout")
