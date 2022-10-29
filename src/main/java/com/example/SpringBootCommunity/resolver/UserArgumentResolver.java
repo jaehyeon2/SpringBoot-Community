@@ -6,10 +6,12 @@ import com.example.SpringBootCommunity.domain.enums.SocialType;
 import com.example.SpringBootCommunity.repository.UserRepository;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -50,9 +52,10 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     private User getUser(User user, HttpSession session){
         if(user==null){
             try{
-                OAuth2Authentication authentication = (OAuth2Authentication) SecurityContextHolder.getContext().getAuthentication();
-                Map<String, String> map = (HashMap<String, String>) authentication.getUserAuthentication().getDetails();
-                User convertUser = convertUser(String.valueOf(authentication.getAuthorities().toArray()[0]), map);
+                OAuth2AuthenticationToken authentication = (OAuth2AuthenticationToken) SecurityContextHolder
+                        .getContext().getAuthentication();
+                Map<String, Object> map = authentication.getPrincipal().getAttributes();
+                User convertUser = convertUser(authentication.getAuthorizedClientRegistrationId(), map);
 
                 user = userRepository.findByEmail(convertUser.getEmail());
                 if(user==null){
@@ -69,31 +72,31 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     }
 
     //소셜 미디어 타입에 따라 빌더 사용, 카카오는 별도 사용
-    private User convertUser(String authority, Map<String, String> map){
-        if(FACEBOOK.isEquals(authority)) return getMordernUser(FACEBOOK, map);
-        else if(GOOGLE.isEquals(authority)) return getMordernUser(GOOGLE, map);
-        else if(KAKAO.isEquals(authority)) return getKakaoUser(map);
+    private User convertUser(String authority, Map<String, Object> map){
+        if(FACEBOOK.getValue().equals(authority)) return getMordernUser(FACEBOOK, map);
+        else if(GOOGLE.getValue().equals(authority)) return getMordernUser(GOOGLE, map);
+        else if(KAKAO.getValue().equals(authority)) return getKakaoUser(map);
         return null;
     }
 
     //페이스북, 구글과 같이 공통 명명규칙 매핑
-    private User getMordernUser(SocialType socialType, Map<String, String> map){
+    private User getMordernUser(SocialType socialType, Map<String, Object> map){
         return User.builder()
-                .name(map.get("name"))
-                .email(map.get("email"))
-                .principal(map.get("id"))
+                .name(String.valueOf(map.get("name")))
+                .email(String.valueOf(map.get("email")))
+                .principal(String.valueOf(map.get("id")))
                 .socialType(socialType)
                 .createdDate(LocalDateTime.now())
                 .build();
     }
 
     //카카오 명명규칭 매핑
-    private User getKakaoUser(Map<String, String> map){
+    private User getKakaoUser(Map<String, Object> map){
         HashMap<String, String> propertyMap = (HashMap<String, String>) (Object) map.get("properties");
 
         return User.builder()
                 .name(propertyMap.get("name"))
-                .email(map.get("kaccount_email"))
+                .email(String.valueOf(map.get("kaccount_email")))
                 .principal(String.valueOf(map.get("id")))
                 .socialType(KAKAO)
                 .createdDate(LocalDateTime.now())
@@ -101,7 +104,7 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     }
 
     //권한 체크
-    private void setRoleIfNotSame(User user, OAuth2Authentication authentication, Map<String, String> map){
+    private void setRoleIfNotSame(User user, OAuth2AuthenticationToken authentication, Map<String, Object> map){
         if(!authentication.getAuthorities().contains(new SimpleGrantedAuthority(user.getSocialType().getRoleType()))){
             SecurityContextHolder.getContext().setAuthentication(new
                     UsernamePasswordAuthenticationToken(map, "N/A",
